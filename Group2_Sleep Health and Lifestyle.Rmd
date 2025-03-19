@@ -1,0 +1,163 @@
+---
+title: "GA SIM: Sleep Health and Lifestyle"
+author: "Supriya Tandukar"
+date: "`r Sys.Date()`"
+output: word_document
+---
+
+                
+# Load necessary libraries
+library(dplyr)
+library(ggplot2)
+library(caret)
+library(tidyr)
+install.packages("corrplot")  
+library(corrplot)
+install.packages("plotl)
+library(plotly)  
+library(knitr)   
+
+# Load the dataset
+sleep_data <- read.csv("C:/Users/Asus/Downloads/Sleep_health_and_lifestyle_dataset.csv")
+
+# Display the first few rows of the dataset
+head(sleep_data)
+
+# Summary of the dataset
+summary(sleep_data)
+
+# Check for missing values
+sum(is.na(sleep_data))
+
+# Check for duplicate rows in the dataset
+duplicate_rows <- sleep_data[duplicated(sleep_data), ]
+cat("Number of duplicate rows:", nrow(duplicate_rows), "\n")
+
+# Display the duplicate rows (if any)
+if (nrow(duplicate_rows) > 0) {
+  print(duplicate_rows)
+} else {
+  cat("No duplicate rows found.\n")
+}
+
+# Data Cleaning and Preprocessing
+# Convert categorical variables to factors
+sleep_data$Gender <- as.factor(sleep_data$Gender)
+sleep_data$Occupation <- as.factor(sleep_data$Occupation)
+sleep_data$BMI.Category <- as.factor(sleep_data$BMI.Category)
+sleep_data$Sleep.Disorder <- as.factor(sleep_data$Sleep.Disorder)
+
+# Exploratory Data Analysis (EDA)
+
+# 1. Distribution of Sleep Duration
+ggplot(sleep_data, aes(x = Sleep.Duration)) +
+  geom_histogram(binwidth = 0.5, fill = "blue", color = "black") +
+  labs(title = "Distribution of Sleep Duration", x = "Sleep Duration (hours)", y = "Frequency")
+  
+# 2. Quality of Sleep by Gender
+ggplot(sleep_data, aes(x = Gender, y = Quality.of.Sleep, fill = Gender)) +
+  geom_boxplot() +
+  labs(title = "Quality of Sleep by Gender", x = "Gender", y = "Quality of Sleep")
+  
+
+# 3. Physical Activity Level by Occupation
+ggplot(sleep_data, aes(x = Occupation, y = Physical.Activity.Level, fill = Occupation)) +
+  geom_boxplot() +
+  labs(title = "Physical Activity Level by Occupation", x = "Occupation", y = "Physical Activity Level") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+# 4. Stress Level by BMI Category
+ggplot(sleep_data, aes(x = BMI.Category, y = Stress.Level, fill = BMI.Category)) +
+  geom_boxplot() +
+  labs(title = "Stress Level by BMI Category", x = "BMI Category", y = "Stress Level")
+
+
+# 5. Correlation Matrix
+numeric_data <- sleep_data %>% select(Sleep.Duration, Quality.of.Sleep, Physical.Activity.Level, Stress.Level, Daily.Steps, Heart.Rate)
+cor_matrix <- cor(numeric_data)
+corrplot(cor_matrix, method = "circle")
+
+# 6. Pair Plot: Sleep Duration vs Quality of Sleep by Gender
+ggplot(sleep_data, aes(x = Sleep.Duration, y = Quality.of.Sleep, color = Gender)) +
+  geom_point(size = 2, alpha = 0.7) +
+  labs(title = "Sleep Duration vs Quality of Sleep by Gender", 
+       x = "Sleep Duration (hours)", 
+       y = "Quality of Sleep") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+  
+
+# Statistical Analysis
+
+# 1. ANOVA: Quality of Sleep by Occupation
+anova_result <- aov(Quality.of.Sleep ~ Occupation, data = sleep_data)
+summary(anova_result)
+
+# 2. Chi-Square Test: Association between Gender and Sleep Disorder
+chisq_test <- chisq.test(table(sleep_data$Gender, sleep_data$Sleep.Disorder))
+chisq_test
+
+# 3. Linear Regression: Predicting Quality of Sleep
+set.seed(123)
+trainIndex <- createDataPartition(sleep_data$Quality.of.Sleep, p = 0.8, list = FALSE)
+train_data <- sleep_data[trainIndex, ]
+test_data <- sleep_data[-trainIndex, ]
+
+# Train the model
+lm_model <- lm(Quality.of.Sleep ~ Sleep.Duration + Physical.Activity.Level + Stress.Level + Daily.Steps + Heart.Rate, data = train_data)
+
+# Model summary
+cat("\nLinear Regression Model Summary:\n")
+print(summary(lm_model))
+
+# Cross-validation
+cat("\nCross-Validation Results:\n")
+cv_results <- train(Quality.of.Sleep ~ Sleep.Duration + Physical.Activity.Level + Stress.Level + Daily.Steps + Heart.Rate, 
+                    data = sleep_data, method = "lm", trControl = trainControl(method = "cv", number = 5))
+print(cv_results)
+
+# Predict on test data
+predictions <- predict(lm_model, newdata = test_data)
+
+# Evaluate the model
+rmse <- sqrt(mean((test_data$Quality.of.Sleep - predictions)^2))
+mae <- mean(abs(test_data$Quality.of.Sleep - predictions))
+cat("\nModel Evaluation Metrics:\n")
+cat("RMSE:", rmse, "\n")
+cat("MAE:", mae, "\n")
+# Calculate R-squared
+rsquared <- cor(test_data$Quality.of.Sleep, predictions)^2
+cat("R-squared:", rsquared, "\n")
+
+# Visualize Actual vs Predicted Quality of Sleep
+results <- data.frame(Actual = test_data$Quality.of.Sleep, Predicted = predictions)
+ggplot(results, aes(x = Actual, y = Predicted)) +
+  geom_point(color = "blue") +
+  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +
+  labs(title = "Actual vs Predicted Quality of Sleep", x = "Actual Quality of Sleep", y = "Predicted Quality of Sleep")
+  
+  
+# Feature Importance
+cat("\nFeature Importance:\n")
+importance <- data.frame(Feature = names(coef(lm_model)), Coefficient = coef(lm_model))
+importance <- importance[-1, ]  # Remove intercept
+importance <- importance[order(-abs(importance$Coefficient)), ]
+print(importance)
+
+# Save feature importance plot
+ggplot(importance, aes(x = reorder(Feature, Coefficient), y = Coefficient)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Feature Importance", x = "Feature", y = "Coefficient")
+  
+
+# Save the results and plots
+ggsave("sleep_duration_distribution.png")
+ggsave("quality_of_sleep_by_gender.png")
+ggsave("physical_activity_by_occupation.png")
+ggsave("stress_level_by_bmi.png")
+png("correlation_matrix.png")
+corrplot(cor_matrix, method = "circle")
+dev.off()
+ggsave("actual_vs_predicted_quality_of_sleep.png")
